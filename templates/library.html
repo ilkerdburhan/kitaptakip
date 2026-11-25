@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Kitaplık{% endblock %}
+{% block content %}
+<ul class="nav nav-pills shelf-tabs mb-4">
+  <li class="nav-item"><a class="nav-link {{ 'active' if active_status == 'okunacak' }}" href="{{ url_for('library', raf='okunacak') }}">Okunacak</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if active_status == 'okunuyor' }}" href="{{ url_for('library', raf='okunuyor') }}">Okunuyor</a></li>
+  <li class="nav-item"><a class="nav-link {{ 'active' if active_status == 'okundu' }}" href="{{ url_for('library', raf='okundu') }}">Okundu</a></li>
+</ul>
+
+{% if books %}
+<div class="book-grid">
+  {% for book in books %}
+  {% set pages = progress[book.id] %}
+  {% set percent = ((pages / book.page_count * 100) if book.page_count else 0) | round(0) | int %}
+  <article class="card book-card">
+    <div class="book-cover-wrap">
+      {% if book.cover %}
+      <img src="{{ url_for('static', filename='kapaklar/' ~ book.cover) }}" alt="{{ book.title }}">
+      {% else %}
+      <img src="{{ url_for('static', filename='default-book.svg') }}" alt="{{ book.title }}">
+      {% endif %}
+      <span class="badge shelf-badge shelf-{{ book.status }}">{{ book.status|replace('okunuyor','Okunuyor')|replace('okunacak','Okunacak')|replace('okundu','Okundu') }}</span>
+    </div>
+    <div class="card-body">
+      <h2 class="h6 mb-1">{{ book.title }}</h2>
+      <p class="text-secondary small mb-3">{{ book.author or 'Yazar belirtilmemiş' }}</p>
+
+      <div class="d-flex justify-content-between small mb-1"><span>İlerleme</span><span>{{ pages }} / {{ book.page_count }}</span></div>
+      <div class="progress mb-3" role="progressbar">
+        <div class="progress-bar" style="width: {{ percent }}%"></div>
+      </div>
+
+      {% if estimates[book.id] is not none %}
+      <p class="estimate mb-3">
+        {% if estimates[book.id] == 0 %}Bu kitap tamamlandı.
+        {% else %}Bu hızla {{ estimates[book.id] }} günde bitirirsin.{% endif %}
+      </p>
+      {% endif %}
+
+      <form action="{{ url_for('add_progress', book_id=book.id) }}" method="post" class="mb-2">
+        <label class="form-label small">Bugün okudum (bulunduğun sayfa)</label>
+        <div class="input-group input-group-sm">
+          <input class="form-control" name="pages" type="number" min="{{ pages }}" max="{{ book.page_count }}" value="{{ pages }}" required>
+          <button class="btn btn-primary" type="submit">Kaydet</button>
+        </div>
+      </form>
+      {% if latest_logs[book.id] %}
+      <form action="{{ url_for('delete_log', book_id=book.id, log_id=latest_logs[book.id].id) }}" method="post" class="mb-2">
+        <button class="btn btn-outline-danger btn-sm" type="submit">Son kayıt sil</button>
+      </form>
+      {% endif %}
+
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        {% if book.source_url %}
+        <a class="btn btn-outline-secondary btn-sm flex-grow-1" target="_blank" rel="noopener" href="{{ book.source_url }}">Kitapyurdu'nda gör</a>
+        {% endif %}
+      </div>
+      <form action="{{ url_for('change_status', book_id=book.id) }}" method="post" class="mb-2">
+        <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
+          <option value="okunacak" {{ 'selected' if book.status == 'okunacak' }}>Okunacak</option>
+          <option value="okunuyor" {{ 'selected' if book.status == 'okunuyor' }}>Okunuyor</option>
+          <option value="okundu" {{ 'selected' if book.status == 'okundu' }}>Okundu</option>
+        </select>
+      </form>
+
+      {% if book.status == 'okundu' %}
+      <form action="{{ url_for('rate_book', book_id=book.id) }}" method="post" class="rating-form">
+        <input type="hidden" name="status" value="okundu">
+        <div class="stars mb-2" aria-label="Puan">
+          {% for star in range(1,6) %}
+          <button type="submit" name="rating" value="{{ star }}" class="{{ 'selected' if star <= book.rating }}"><i class="bi {{ 'bi-star-fill' if star <= book.rating else 'bi-star' }}"></i></button>
+          {% endfor %}
+        </div>
+        <textarea class="form-control form-control-sm" name="note" rows="2" placeholder="Kısa not">{{ book.note }}</textarea>
+        <button class="btn btn-outline-primary btn-sm mt-2" type="submit" name="rating" value="{{ book.rating }}">Notu Kaydet</button>
+      </form>
+      {% endif %}
+
+      {% set logs = namespace(items=[]) %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state card"><div class="card-body text-center text-secondary">Bu rafta kitap yok.</div></div>
+{% endif %}
+{% endblock %}
